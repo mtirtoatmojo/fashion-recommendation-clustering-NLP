@@ -1,0 +1,571 @@
+---
+title: "sentiment analysis"
+format: html
+editor: visual
+---
+
+## Sentiment Analysis
+
+Prior to cleaning our data, we will now perform a sentiment analysis to understand what is the overall sentiment of the review customers left for these products. Moreover, we will also perform a data manipulation technique to create a new column that would group these products by colour, patterns, style, and materials to understand customers' sentiment analysis to the sub-category of these group.
+
+```{r}
+
+#Load necessary libraries
+
+# Set CRAN mirror
+options(repos = c(CRAN = "https://cran.rstudio.com/"))
+
+# Install necessary packages
+if (!requireNamespace("tidytext", quietly = TRUE)) {
+  install.packages("tidytext")
+}
+if (!requireNamespace("tidyr", quietly = TRUE)) {
+  install.packages("tidyr")
+}
+if (!requireNamespace("dplyr", quietly = TRUE)) {
+  install.packages("dplyr")
+}
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+
+install.packages("tidytext")
+install.packages("sentimentr")
+install.packages("udpipe")
+install.packages("textdata")
+library(readr)
+library(tm)
+library(tidytext)
+library(tidyr)
+library(dplyr)
+library(sentimentr)
+library(ggplot2)
+library(ggthemes)
+library(glue)
+library(stringr)
+library(magrittr)
+library(udpipe)
+library(textdata)
+
+```
+
+```{r}
+#Exploratory Data Analysis 
+
+setwd('/Users/michelletirtoatmojo/Downloads')
+clothing <- read_csv('Women_Clothing_Reviews.csv')
+
+#Let's understand the median and mean for the rating
+
+median(clothing$Rating)
+mean(clothing$Rating)  
+```
+
+```{r}
+clothing %>%
+  summarize(average_rating = mean(Rating), Rating = median(Rating))
+```
+
+```{r}
+# See distribution of reviews 
+
+ggplot(data=clothing,aes(x=Rating))+
+  geom_histogram(fill='sienna3')+
+  theme_bw()+
+  scale_x_reverse()+
+  xlab('Review Rating')+
+  coord_flip()
+```
+
+```{r}
+# Reviewing character, words, and sentences across Review.Text 
+
+#Count of characters
+summary(nchar(clothing$Review.Text))
+
+#Inspecting the shortest characters
+shortest_review_index_c = which.min(nchar(clothing$Review.Text))
+clothing$Review.Text[shortest_review_index_c]
+
+#Inspecting the longest characters
+longest_review_index_c = which.max(nchar(clothing$Review.Text))
+clothing$Review.Text[longest_review_index_c]
+```
+
+```{r}
+#Count of words 
+summary(str_count(string = clothing$Review.Text,pattern = '\\S+'))
+
+#Inspecting the shortest review
+shortest_review_index = which.min(str_count(string = clothing$Review.Text,pattern = '\\S+'))
+clothing$Review.Text[shortest_review_index]
+
+#Inspecting the longest review 
+longest_review_index_c = which.max(nchar(clothing$Review.Text))
+clothing$Review.Text[longest_review_index_c]
+```
+
+```{r}
+# Count of sentences 
+summary(str_count(string = clothing$Review.Text,pattern = "[A-Za-z,;'\"\\s]+[^.!?]*[.?!]"))
+
+#Inspecting the shortest review
+longest_review_index_s = which.min(str_count(string = clothing$Review.Text, pattern = "[A-Za-z,;'\"\\s]+[^.!?]*[.?!]"))
+clothing$Review.Text[longest_review_index_s]
+
+#Inspecting the longest review
+longest_review_index_s = which.max(str_count(string = clothing$Review.Text, pattern = "[A-Za-z,;'\"\\s]+[^.!?]*[.?!]"))
+clothing$Review.Text[longest_review_index_s]
+```
+
+```{r}
+# Summary of average word, characters, and sentences count 
+clothing %>%
+  select(Review.Text)%>%
+  mutate(characters = nchar(Review.Text),
+         words = str_count(Review.Text,pattern='\\S+'),
+         sentences = str_count(Review.Text,pattern="[A-Za-z,;'\"\\s]+[^.!?]*[.?!]"))%>%
+  summarize_at(c('characters','words','sentences'),.funs = mean,na.rm=T)
+```
+
+```{r}
+# Exploring grammar 
+# How many reviews are written in upper case? 
+percentUpper = 100*str_count(clothing$Review.Text,pattern='[A-Z]')/nchar(clothing$Review.Text)
+summary(percentUpper)
+
+# How many reviews are written with exclamation marks? 
+percentExclamation = 100*str_count(clothing$Review.Text,pattern='!')/nchar(clothing$Review.Text)
+summary(percentExclamation)
+
+# Correlation between upper case reviews and exclamation mark on rating 
+r_upper = cor.test(percentUpper,clothing$Rating)
+r_exclamation = cor.test(percentExclamation,clothing$Rating)
+correlations2 = data.frame(r = c(r_upper$estimate, r_exclamation$estimate),p_value=c(r_upper$p.value, r_exclamation$p.value))
+rownames(correlations2) = c('Upper Case','Exclamation Marks')
+correlations2
+
+# Note : they are highly correlated! 
+```
+
+Now this is where the fun begins! After understanding the distributions of our review texts and ratings, we will now inspect the top common words that shows up in the review texts. Since we have filtered out our stop words in the pre-processing step, we will perform the clean version.
+
+```{r}
+# Inspect Common Words from our cleaned corpus that we pre-processed 
+# Convert the preprocessed corpus to a data frame
+
+# Create the corpus (assuming you want to create it from the Review.Text column)
+corpus <- Corpus(VectorSource(clothing$Review.Text))
+
+# Clean the corpus (convert to lowercase, remove punctuation, stopwords, etc.)
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removeWords, stopwords("english"))
+corpus <- tm_map(corpus, stripWhitespace)
+
+cleaned_texts <- data.frame(text = sapply(corpus, as.character), stringsAsFactors = FALSE)
+
+common_words <- cleaned_texts %>%
+  unnest_tokens(word, text) %>%
+  count(word) %>%
+  arrange(desc(n)) %>%
+  slice_max(n, n = 25)
+
+
+common_words
+
+# Visualize in bar graph 
+common_words %>%
+  ggplot(aes(x = reorder(word, n), y = n, fill = n)) +
+  geom_col() +
+  xlab('Words') +
+  coord_flip() +
+  labs(title = "Top 25 Most Common Words in Reviews")
+```
+
+```{r}
+# Start of sentiment analysis 
+# Categorize words based on their valence (positive or negative), emotions, and domain
+# Binary Sentiment Lexicon 
+clothing %>%
+  group_by(Clothing.ID)%>%
+  unnest_tokens(output = word, input = Review.Text)%>%
+  inner_join(get_sentiments('bing'))%>%
+  group_by(sentiment)%>%
+  count()%>%
+  ggplot(aes(x=sentiment,y=n,fill=sentiment))+
+  geom_col()+
+  theme_economist()+
+  guides(fill=F)+
+  coord_flip()
+```
+
+```{r}
+
+# Proportion of positive and negative reviews 
+clothing %>%
+  select(Clothing.ID, Review.Text)%>%
+  group_by(Clothing.ID)%>%
+  unnest_tokens(output=word,input=Review.Text)%>%
+  ungroup()%>%
+  inner_join(get_sentiments('bing'))%>%
+  group_by(sentiment)%>%
+  summarize(n = n())%>%
+  mutate(proportion = n/sum(n))
+```
+
+```{r}
+# Validating the relationship between rating and review sentiments 
+clothing %>%
+  select(Clothing.ID,Review.Text,Rating)%>%
+  group_by(Clothing.ID, Rating)%>%
+  unnest_tokens(output=word,input=Review.Text)%>%
+  ungroup()%>%
+  inner_join(get_sentiments('bing'))%>%
+  group_by(Rating,sentiment)%>%
+  summarize(n = n())%>%
+  mutate(proportion = n/sum(n))
+```
+
+This proportion result is actually very interesting as even the 1 and 2 rating still has a larger proportion of positive sentiments - although this contradicts with the low rating that they gave. It can be concluded here that even with low ratings, people are still somewhat courteous about how they are giving the reviews
+
+```{r}
+#Visualizing it 
+
+library(ggthemes)
+clothing %>%
+  select(Clothing.ID,Review.Text,Rating)%>%
+  group_by(Clothing.ID, Rating)%>%
+  unnest_tokens(output=word,input=Review.Text)%>%
+  ungroup()%>%
+  inner_join(get_sentiments('bing'))%>%
+  group_by(Rating,sentiment)%>%
+  summarize(n = n())%>%
+  mutate(proportion = n/sum(n))%>%
+  ggplot(aes(x=Rating,y=proportion,fill=sentiment))+
+  geom_col()+
+  theme_economist()+
+  coord_flip()
+```
+
+```{r}
+#Let's analyze how favorable positive reviews are rated 
+
+clothing %>%
+  group_by(Clothing.ID, Rating)%>%
+  unnest_tokens(output = word, input =Review.Text)%>%
+  inner_join(get_sentiments('bing'))%>%
+  group_by(Clothing.ID, Rating)%>%
+  summarize(positive_words = sum(sentiment=='positive'),
+            negative_words = sum(sentiment=='negative'),
+            proportion_positive = positive_words/(positive_words+negative_words))%>%
+  ungroup()%>%
+  summarize(correlation = cor(proportion_positive,Rating))
+```
+
+There's a moderate positive relationship between positive reviews and how they are rated as positives by Bing. In other words, reviews with a higher proportion of positive words tend to have higher ratings, but the relationship is not very strong.
+
+Now, instead of only categorizing our reviews by valence (i.e positive and negative), let's categorize it by emotions - in which we will incoprorate with the lexicons from nrc
+
+```{r}
+# Get lexicon 
+nrc = get_sentiments('nrc')
+
+#Examining our review text based on emotions in descending order 
+clothing %>%
+  group_by(Clothing.ID)%>%
+  unnest_tokens(output = word, input = Review.Text)%>%
+  inner_join(nrc)%>%
+  group_by(sentiment)%>%
+  count()%>%
+  arrange(desc(n))
+```
+
+```{r}
+#Visualize it in a bar graph
+clothing %>%
+  group_by(Clothing.ID)%>%
+  unnest_tokens(output = word, input = Review.Text)%>%
+  inner_join(nrc)%>%
+  group_by(sentiment)%>%
+  count()%>%
+  ggplot(aes(x=reorder(sentiment,X = n), y=n, fill=sentiment))+
+  geom_col()+
+  guides(fill=F)+
+  coord_flip()+
+  theme_wsj()
+```
+
+```{r}
+
+# Analyzing the correlation between rating and top emotions identified 
+# Breaking it down by each review 
+clothing %>%
+  group_by(Clothing.ID, Rating)%>%
+  unnest_tokens(output = word, input = Review.Text)%>%
+  inner_join(nrc)%>%
+  group_by(Clothing.ID,sentiment,Rating)%>%
+  count
+
+
+
+# Visualizing it in a bar graph - understanding the correlatoin between rating and emotions 
+  clothing %>%
+  group_by(Clothing.ID, Rating)%>%
+  unnest_tokens(output = word, input = Review.Text)%>%
+  inner_join(nrc)%>%
+  group_by(Clothing.ID,sentiment,Rating)%>%
+  count()%>%
+  group_by(Clothing.ID,sentiment, Rating)%>%
+  pivot_wider(names_from = sentiment,values_from = n)%>%
+  mutate_at(.vars = 3:12, .funs = function(x) replace_na(x,0))%>%
+  ungroup()%>%
+  pivot_longer(cols = anticipation: sadness, names_to = 'sentiment',values_to = 'n')%>%
+  group_by(sentiment, Rating)%>%
+  summarize(n = mean(n))%>%
+  ggplot(aes(x=Rating,y=n,fill=Rating))+
+  geom_col()+
+  facet_wrap(~sentiment)+
+  guides(fill=F)+
+  coord_flip()+
+  theme_bw()
+```
+
+This provided us with an interesting insights - some emotions like anticipations can be interpreted as negative or positive; with this graph, it is clear that in this context, anticipations are perceive as positive (associated with high ratings). It is also rather interesting that there is a rather large proportions of 5 rating being associated with negative emotions. Understanding this, it is important to quantify the significance between the emotions and its frequency in ratings
+
+```{r}
+# Quantify the signifiance between emotions and its frequency in ratings 
+
+clothing %>%
+  group_by(Clothing.ID, Rating)%>%
+  unnest_tokens(output = word, input = Review.Text)%>%
+  inner_join(nrc)%>%
+  group_by(Clothing.ID,Rating, sentiment)%>%
+  count()%>%
+  pivot_wider(names_from = sentiment,values_from=n)%>%
+  select(Clothing.ID, Rating, positive, negative, trust, anticipation, joy, fear, anger, sadness, surprise, disgust)%>%
+  mutate_at(.vars = 3:12, .funs = function(x) replace_na(x,0))%>%
+  ungroup()%>%
+  pivot_longer(cols = 3:12, names_to = 'sentiment',values_to = 'n')%>%
+  group_by(sentiment)%>%
+  summarize('Correlation with rating' = round(cor(n,Rating),2),
+            p = ifelse(cor.test(n,Rating)$p.value<0.05,'p < 0.05','not significant'))
+```
+
+It's great to understand the overall review text and rating and how it contributes to different valence and emotions as it gives us a great understanding of customer perceptions towards our product. However, we find it rather pointless to not be able to identify which features contributes to these emotions. Understanding which features or objects are correlated with certain emotions will helps us in product improvements or forecasting. Hence, let's extract the "nouns" and "pronouns" in the review texts and perform the sentiment analysis on them.
+
+```{r}
+# Unnest tokens and join with the NRC lexicon
+emotion_counts <- clothing %>%
+  unnest_tokens(word, Review.Text) %>%
+  inner_join(get_sentiments("nrc")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+
+# Print the emotion counts
+print(emotion_counts)
+
+```
+
+```{r}
+# Download and load a pre-trained English model
+ud_model <- udpipe_download_model(language = "english")
+udpipe_model <- udpipe_load_model(file = ud_model$file_model)
+```
+
+```{r}
+small_sample <- clothing$Review.Text[1:100]  # Take the first 100 reviews
+annotation_sample <- udpipe_annotate(udpipe_model, x = small_sample)
+annotation_sample <- as.data.frame(annotation_sample)
+
+head(annotation_sample)
+```
+
+```{r}
+# Filter for nouns and proper nouns
+attributes <- annotation_sample %>%
+  filter(upos %in% c("NOUN", "PROPN")) %>%
+  select(doc_id, token, lemma, upos)
+
+attributes <- attributes %>%
+  rename(word = lemma)
+
+# Print a sample of the attributes
+attributes
+```
+
+```{r}
+
+# Get the NRC sentiment lexicon
+nrc_sentiments <- get_sentiments("nrc")
+
+head(nrc_sentiments)
+```
+
+```{r}
+
+#Now let's join the NRC sentiment lexicon with the "NOUN" and "PRONOUN" token that we were able to lemmatize from our dataset earlier 
+
+if ("word" %in% colnames(attributes) & "word" %in% colnames(nrc_sentiments)) {
+  # Join attributes with NRC lexicon to get sentiments
+  attribute_sentiments <- attributes %>%
+    inner_join(nrc_sentiments, by = "word") %>%
+    group_by(word, sentiment) %>%
+    summarize(count = n()) %>%
+    ungroup()
+  
+  # Print a sample of the attribute sentiments
+  print(attribute_sentiments)
+}
+```
+
+```{r}
+
+# Visualize the distribution of sentiments for different attributes
+ggplot(attribute_sentiments, aes(x = reorder(word, count), y = count, fill = sentiment)) +
+  geom_col(show.legend = TRUE) +
+  coord_flip() +
+  facet_wrap(~ sentiment, scales = "free_y") +
+  labs(title = "Sentiment Analysis of Key Attributes in Reviews",
+       x = "Attributes",
+       y = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 5),
+        axis.text.y = element_text(size = 5),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(size = 14),
+        axis.title = element_text(size = 12)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+```
+
+```{r}
+# Stacked bar plot of sentiments for different attributes
+ggplot(attribute_sentiments, aes(x = reorder(word, count), y = count, fill = sentiment)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(title = "Sentiment Distribution for Key Attributes in Reviews",
+       x = "Attributes",
+       y = "Count") +
+  theme_minimal()  +
+  theme(axis.text.x = element_text(size = 5),
+        axis.text.y = element_text(size = 5),
+        legend.text = element_text(size = 10),
+        plot.title = element_text(size = 14),
+        axis.title = element_text(size = 12)) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, NA))
+```
+
+```{r}
+top_attributes <- attribute_sentiments %>%
+  group_by(word) %>%
+  summarize(total_count = sum(count)) %>%
+  arrange(desc(total_count)) %>%
+  top_n(35, total_count) %>%
+  inner_join(attribute_sentiments, by = "word")
+
+top_attributes
+```
+
+Ok great! As much as understanding the high level view of the sentiments the entirety of the review gave us, it is rather pointless because we don't know which clothing type, features, of patterns these emotions are associated with. By lemmatizing our dataset into "NOUN" and "PRONOUN" we would be able to extract the objects and see the relationship of it with NRC lexicon emotions. Understanding what clothing type, features, and patterns will also gives us more context to make business recommendation and forecast fashion recommendations in the future.
+
+Something that is quite interesting to note from the above analysis is that people tend to associate "lace" with negative emotions (i.e anger, fear, etc) and that "top" was associated with a lot of positive emotions (i.e anticipation, joy, trust, etc)
+
+We have also performed a data manipulation technique that allowed us to create a new column on when a colour, pattern, style, or material is mentioned. We will now upload that new data and perform sentiment analysis on them
+
+```{r}
+# Load the new dataset
+new_review<- read.csv("review_data_new_columns.csv")
+
+# Filter out rows with "unknown" in colour, pattern, or material columns
+new_review <- new_review %>%
+  filter(colour != "unknown" & pattern != "unknown" & material != "unknown" & style != "unknown")
+
+# Tokenize the review text
+tokenized_reviews <- new_review %>%
+  unnest_tokens(word, Review.Text)
+
+# Inspect the tokenized data
+head(tokenized_reviews)
+
+```
+
+```{r}
+# Join the tokenized words with the NRC sentiment lexicon to get sentiments
+review_sentiments <- tokenized_reviews %>%
+  inner_join(nrc_sentiments, by = "word")
+# Get the NRC sentiment lexicon
+nrc_sentiments <- get_sentiments("nrc")
+```
+
+```{r}
+# Join with new columns (colour, pattern, style, material)
+# Group by color and sentiment
+emotion_by_color <- review_sentiments %>%
+  group_by(colour, sentiment) %>%
+  summarize(count = n())
+
+emotion_by_color
+
+# Create the bar plot for color
+ggplot(emotion_by_color, aes(x = reorder(colour, count), y = count, fill = sentiment)) +
+  geom_col(show.legend = TRUE) +
+  coord_flip() +
+  labs(title = "Sentiment Distribution by Color",
+       x = "Color",
+       y = "Count") +
+  theme_minimal()
+```
+
+Great! It seems that red seems to be a popular colour that a lot of people love – as we can see that overall, it is associated with a lot of positive sentiments.
+
+```{r}
+# Group by pattern and sentiment
+emotion_by_pattern <- review_sentiments %>%
+  group_by(pattern, sentiment) %>%
+  summarize(count = n())
+
+
+# Create the bar plot for pattern
+ggplot(emotion_by_pattern, aes(x = reorder(pattern, count), y = count, fill = sentiment)) +
+  geom_col(show.legend = TRUE) +
+  coord_flip() +
+  labs(title = "Sentiment Distribution by Pattern",
+       x = "Pattern",
+       y = "Count") +
+  theme_minimal()
+
+```
+
+```{r}
+# Group by material and sentiment
+emotion_by_material <- review_sentiments %>%
+  group_by(material, sentiment) %>%
+  summarize(count = n())
+
+# Create the bar plot for material
+ggplot(emotion_by_material, aes(x = reorder(material, count), y = count, fill = sentiment)) +
+  geom_col(show.legend = TRUE) +
+  coord_flip() +
+  labs(title = "Sentiment Distribution by Material",
+       x = "Material",
+       y = "Count") +
+  theme_minimal()
+
+```
+
+```{r}
+# Group by style and sentiment
+emotion_by_style <- review_sentiments %>%
+  group_by(style, sentiment) %>%
+  summarize(count = n())
+
+# Create the bar plot for pattern
+ggplot(emotion_by_style, aes(x = reorder(style, count), y = count, fill = sentiment)) +
+  geom_col(show.legend = TRUE) +
+  coord_flip() +
+  labs(title = "Sentiment Distribution by Style",
+       x = "Style",
+       y = "Count") +
+  theme_minimal()
+```

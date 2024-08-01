@@ -1,0 +1,1005 @@
+---
+title: "DataCleaning_Summer Data"
+format: html
+editor: visual
+---
+
+```{r}
+#Load all Libraries 
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(kableExtra)
+```
+
+```{r}
+#Import rawdataset
+raw_data = read.csv('summer-products.csv',header=TRUE,sep=',')
+```
+
+```{r}
+#Data Description
+Variable <- names(raw_data)
+
+var_desc <- c("Title for localized for european countries. May be the same as title_orig if the seller did not offer a translation.", 
+                 "Original english title of the product.",
+                 "Price you would pay to get the product.",
+                 "Reference price for similar articles on the market, or in other stores/places. Used by the seller to indicate a regular value or the price before discount.",
+                 "Currency of the prices.",
+                 "Number of units sold. Lower bound approximation by steps.",
+                 "Whether the seller paid to boost his product within the platform (highlighting, better placement or whatever).",
+                 "Mean product rating.",
+                 "Total number of ratings of the product.",
+                 "Number of 5-star ratings.",
+                 "Number of 4-star ratings.",
+                 "Number of 3-star ratings.",
+                 "Number of 2-star ratings.",                 
+                 "Number of 1-star ratings.",
+                 "Number of badges the product or the seller have.",
+                 "A badge that denotes the product is a local product. Conditions may vary (being produced locally, or something else). Some people may prefer buying local products rather than. 1 means Yes, has the badge.",
+                 "Badge awarded when many buyers consistently gave good evaluations. 1 means Yes, has the badge.",
+                 "Badge awarded when this product's order is consistently shipped rapidly.",
+                 "tags set by the seller.",
+                 "Product's main color.",
+                 "One of the available size variation for this product.",
+                 "Inventory the seller has. Max allowed quantity is 50.",
+                 "Shipping_option_name.",
+                 "Shipping price.",
+                 "Whether the shipping is express or not. 1 for True.",
+                 "Number of countries this product is shipped to. Sellers may choose to limit where they ship a product to.",
+                 "Total inventory for all the product's variations (size/color variations for instance).",
+                 "Whether there was an urgency banner with an urgency.",
+                 "A text banner that appear over some products in the search results.",
+                 "Origin_country.",
+                 "Merchant's displayed name (show in the UI as the seller's shop name).",
+                 "Merchant's canonical name. A name not shown publicly. Used by the website under the hood as a canonical name. Easier to process since all lowercase without white space.",
+                 "The subtitle text as shown on a seller's info section to the user. (raw, not preprocessed). The website shows this to the user to give an overview of the seller's stats to the user. Mostly consists of `% <positive_feedbacks> (<rating_count> reviews)` written in french.",
+                 "Number of ratings of this seller.",
+                 "Merchant's rating.",
+                 "Merchant unique id.",
+                 "Convenience boolean that says whether there is a `merchant_profile_picture` url.",
+                 "Custom profile picture of the seller (if the seller has one). Empty otherwise.",
+                 "Url to the product page. You may need to login to access it.",
+                 "Product_picture.",
+                 "Product identifier. You can use this key to remove duplicate entries if you're not interested in studying them.",
+                 "The search term used in the search bar of the website to get these search results.",
+                 "Meta: for info only.")
+
+
+data.frame(Variable, var_desc) %>% 
+  kbl(caption = "Adapated from the Kaggle Website.") %>% 
+  kable_styling(bootstrap_options = c("striped", "bordered"))
+  
+
+  
+
+```
+
+```{r}
+#raw_data has 1573 columns and 43 variables
+str(raw_data)
+```
+
+```{r}
+# Find columns with missing values
+missing_values <- colSums(is.na(raw_data))
+
+# Filter and display columns with missing values
+columns_with_na <- missing_values[missing_values > 0]
+columns_with_na
+```
+
+```{r}
+# Function to count blank spaces in each column
+count_blank_spaces <- function(df) {
+  sapply(df, function(col) sum(col == "", na.rm = TRUE))
+}
+
+# Get the count of blank spaces for each column
+blank_spaces_counts <- count_blank_spaces(raw_data)
+
+# Filter and display columns with blank spaces
+columns_with_blanks <- blank_spaces_counts[blank_spaces_counts > 0]
+columns_with_blanks
+```
+
+```{r}
+#Dropping Irrelevant, duplicate and columns with high number of missing values"
+'title, merchant_profile_picture, crawl_month, theme. - only summer, urgency_text'
+data_updated <- raw_data %>%
+  select(-title, -merchant_profile_picture,-crawl_month, -theme,- product_url)
+```
+
+```{r}
+#Updated data file has 1573 rows and 37 columns
+str(data_updated)
+```
+
+```{r}
+#Next we will analyze each variable independently, look for columns with missing values or non standard data entries - clean them or drop them accordingly. 
+```
+
+```{r}
+# title_orig - English title of the product
+distinct_count <- data_updated %>%
+  summarise(count = n_distinct(title_orig))
+print(distinct_count)
+```
+
+```{r}
+non_unique_values <- data_updated %>%
+  group_by(title_orig) %>%
+  filter(n() > 1) %>%
+  distinct(title_orig)
+
+print(nrow(non_unique_values))
+```
+
+```{r}
+# Identify rows with missing values (NA) or empty strings ("")
+#No missing rows to impute or delete 
+missing_or_empty <- data_updated[is.na(data_updated$title_orig) | data_updated$title_orig == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+#checking for missing values in price - #No missing rows to impute or delete 
+missing_or_empty <- data_updated[is.na(data_updated$price) | data_updated$price == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+#Data trend of price variable 
+# Using ggplot2
+ggplot(data_updated, aes(x = price)) +
+  geom_histogram(binwidth = 5, fill = "lightblue", color = "black") +
+  labs(title = "Histogram of Prices", x = "Price", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in retail_price
+missing_or_empty <- data_updated[is.na(data_updated$retail_price) | data_updated$retail_price == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = retail_price)) +
+  geom_histogram(binwidth = 5, fill = "lightblue", color = "black") +
+  labs(title = "Histogram of Retail Price", x = "retail_price", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in currency_buyer
+missing_or_empty <- data_updated[is.na(data_updated$currency_buyer) | data_updated$currency_buyer == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+#Only one unique currency - can drop currency
+unique(data_updated$currency_buyer) 
+```
+
+```{r}
+data_updated <- data_updated %>%
+  select(-currency_buyer)
+```
+
+```{r}
+str(data_updated)
+```
+
+```{r}
+#checking for missing values in units_sold - no.of units of product
+missing_or_empty <- data_updated[is.na(data_updated$units_sold) | data_updated$units_sold == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = units_sold)) +
+  geom_histogram( fill = "lightblue", color = "black", bins = 10) +
+  labs(title = "Total Units Sold", x = "units_sold", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in uses_ad_boosts 
+missing_or_empty <- data_updated[is.na(data_updated$uses_ad_boosts ) | data_updated$uses_ad_boosts  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+ggplot(data_updated, aes(x = factor(uses_ad_boosts))) +
+  geom_histogram(stat = "count", fill = "lightblue", color = "black") +
+  labs(title = "Ad Boosts", x = "uses_ad_boosts (1 or 0)", y = "Frequency") +
+  scale_x_discrete(labels = c("0" = "No Boost", "1" = "Ad Boost"))
+```
+
+```{r}
+#checking for missing values in rating 
+missing_or_empty <- data_updated[is.na(data_updated$rating ) | data_updated$rating  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = rating )) +
+  geom_histogram( fill = "lightblue", color = "black", bins = 20) +
+  labs(title = "Distribution of Product Rating", x = "Rating", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in rating_count 
+missing_or_empty <- data_updated[is.na(data_updated$rating_count ) | data_updated$rating_count  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = rating_count )) +
+  geom_histogram( fill = "lightblue", color = "black", bins = 20) +
+  labs(title = "No.of product Ratings", x = "rating_count", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in 5 rating_count 
+missing_or_empty <- data_updated[is.na(data_updated$rating_five_count ) | data_updated$rating_five_count  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+#Impute missing value by mean
+data_updated <- data_updated %>%
+  mutate_if(is.numeric, ~ if_else(is.na(rating_five_count), mean(., na.rm = TRUE), .))
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = rating_five_count )) +
+  geom_histogram( fill = "lightblue", color = "black", bins = 20) +
+  labs(title = "5 Rating Distribution", x = "rating_five_count", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in 4 rating_count 
+missing_or_empty <- data_updated[is.na(data_updated$rating_four_count ) | data_updated$rating_four_count  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+#Impute missing value by mean
+data_updated <- data_updated %>%
+  mutate_if(is.numeric, ~ if_else(is.na(rating_four_count), mean(., na.rm = TRUE), .))
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = rating_four_count )) +
+  geom_histogram( fill = "lightblue", color = "black", bins = 20) +
+  labs(title = "4 Rating Distribution", x = "rating_four_count", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in 3 rating_count 
+missing_or_empty <- data_updated[is.na(data_updated$rating_three_count ) | data_updated$rating_three_count  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+#Impute missing value by mean
+data_updated <- data_updated %>%
+  mutate_if(is.numeric, ~ if_else(is.na(rating_three_count), mean(., na.rm = TRUE), .))
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = rating_three_count )) +
+  geom_histogram( fill = "lightblue", color = "black", bins = 20) +
+  labs(title = "3 Rating Distribution", x = "rating_three_count", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in 2 rating_count 
+missing_or_empty <- data_updated[is.na(data_updated$rating_two_count ) | data_updated$rating_two_count  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+#Impute missing value by mean
+data_updated <- data_updated %>%
+  mutate_if(is.numeric, ~ if_else(is.na(rating_two_count), mean(., na.rm = TRUE), .))
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = rating_two_count )) +
+  geom_histogram( fill = "lightblue", color = "black", bins = 20) +
+  labs(title = "2 Rating Distribution", x = "rating_two_count", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in 1 rating_count 
+missing_or_empty <- data_updated[is.na(data_updated$rating_one_count ) | data_updated$rating_one_count  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+#Impute missing value by mean
+data_updated <- data_updated %>%
+  mutate_if(is.numeric, ~ if_else(is.na(rating_one_count), mean(., na.rm = TRUE), .))
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = rating_one_count )) +
+  geom_histogram( fill = "lightblue", color = "black", bins = 20) +
+  labs(title = "1 Rating Distribution", x = "rating_one_count", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in badges_count 
+missing_or_empty <- data_updated[is.na(data_updated$badges_count ) | data_updated$badges_count  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+unique(data_updated$badges_count)
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = badges_count )) +
+  geom_histogram( fill = "lightblue", color = "black", bins = 20) +
+  labs(title = "Badges", x = "badges_count", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in badge_local_product 
+missing_or_empty <- data_updated[is.na(data_updated$badge_local_product ) | data_updated$badge_local_product  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+unique(data_updated$badge_local_product)
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = factor(badge_local_product))) +
+  geom_histogram(stat = "count", fill = "lightblue", color = "black") +
+  labs(title = "Badge Local Product", x = "Badge Local Product (0 or 1)", y = "Frequency") +
+  scale_x_discrete(labels = c("0" = "No Badge", "1" = "Local Product Badge"))
+```
+
+```{r}
+#checking for missing values in badge_product_quality 
+missing_or_empty <- data_updated[is.na(data_updated$badge_product_quality ) | data_updated$badge_product_quality  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+unique(data_updated$badge_product_quality)
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = factor(badge_product_quality))) +
+  geom_bar(stat = "count", fill = "lightblue", color = "black") +
+  labs(title = "Badge Product Quality", x = "Badge Product Quality (0 or 1)", y = "Frequency") + scale_x_discrete(labels = c("0" = "No Quality Badge", "1" = "Quality Badge"))
+```
+
+```{r}
+#checking for missing values in badge_fast_shipping 
+missing_or_empty <- data_updated[is.na(data_updated$badge_fast_shipping ) | data_updated$badge_fast_shipping  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+unique(data_updated$badge_fast_shipping)
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = factor(badge_fast_shipping))) +
+  geom_bar(stat = "count", fill = "lightblue", color = "black") +
+  labs(title = "Badge Fast Shipping", x = "Badge Fast Shipping (0 or 1)", y = "Frequency") +
+  scale_x_discrete(labels = c("0" = "No Fast Shipping Badge", "1" = "Fast Shipping Badge"))
+```
+
+```{r}
+#checking for missing values in tags 
+missing_or_empty <- data_updated[is.na(data_updated$tags ) | data_updated$tags  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+#checking for missing values in product_color 
+missing_or_empty <- data_updated[is.na(data_updated$product_color ) | data_updated$product_color  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+unique(data_updated$product_color)
+```
+
+```{r}
+data_updated <- data_updated %>%
+  mutate(product_color = replace(product_color, product_color == "", NA)) %>%
+  mutate(product_color = replace(product_color, is.na(product_color), "Unavailable"))
+```
+
+```{r}
+ggplot(data_updated, aes(x = product_color)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Product Color Distribution", x = "Product Color", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+library(dplyr)
+
+# Remove spaces, & and make all characters lowercase in product_color column
+data_updated <- data_updated %>%
+  mutate(product_color = gsub(" |&", "", product_color)) %>%
+  mutate(product_color = tolower(product_color))
+
+```
+
+```{r}
+ggplot(data_updated, aes(x = product_color)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Product Color Distribution", x = "Product Color", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+data_updated <- data_updated %>% 
+  mutate(product_color = as.character(product_color),
+         product_color = case_when(product_color == "gray" ~ "grey",
+                                   TRUE ~ product_color),
+         product_color = as.factor(product_color))
+```
+
+```{r}
+
+# Summarize and arrange the data
+product_color_counts <- data_updated %>%
+  count(product_color) %>%
+  arrange(desc(n))
+
+# Convert product_color to a factor with levels ordered by count
+product_color_counts$product_color <- factor(product_color_counts$product_color, levels = product_color_counts$product_color)
+
+# Plot the data
+ggplot(product_color_counts, aes(x = product_color, y = n)) +
+  geom_bar(stat = "identity", fill = "lightblue", color = "black") +
+  labs(title = "Product Color Distribution", x = "Product Color", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+#Retaining high frequncy colors and grouping the rest
+ data_updated <- data_updated %>% 
+ mutate(product_color = as.character(product_color),
+         product_colors = case_when(product_color == "black" ~ "black",
+                                   product_color == "white" ~ "white",
+                                   product_color == "pink" ~ "pink",
+                                   product_color == "blue" ~ "blue",
+                                   product_color == "yellow" ~ "yellow",
+                                   product_color == "red" ~ "red",
+                                   product_color == "green" ~ "green",
+                                   product_color == "grey" ~ "grey",
+                                   product_color == "purple" ~ "purple",
+                                   product_color == "armygreen" ~ "armygreen",
+                                           TRUE ~ "Other_colors"),
+         product_color = as.factor(product_colors))
+```
+
+```{r}
+
+# Summarize and arrange the data
+product_color_counts <- data_updated %>%
+  count(product_color) %>%
+  arrange(desc(n))
+
+# Convert product_color to a factor with levels ordered by count
+product_color_counts$product_color <- factor(product_color_counts$product_color, levels = product_color_counts$product_color)
+
+# Plot the data
+ggplot(product_color_counts, aes(x = product_color, y = n)) +
+  geom_bar(stat = "identity", fill = "lightblue", color = "black") +
+  labs(title = "Product Color Distribution", x = "Product Color", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+```{r}
+#checking for missing values in product_variation_size_id 
+missing_or_empty <- data_updated[is.na(data_updated$product_variation_size_id ) | data_updated$product_variation_size_id  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+data_updated <- data_updated %>%
+  mutate(product_variation_size_id = replace(product_variation_size_id, product_variation_size_id == "", NA)) %>%
+  mutate(product_variation_size_id = replace(product_variation_size_id, is.na(product_variation_size_id), "Unavailable"))
+```
+
+```{r}
+data_updated <- data_updated %>% 
+  mutate(product_variation_size_id = str_to_upper(product_variation_size_id),
+         product_variation_size_id = str_replace_all(product_variation_size_id, "[[:punct:]]", " "),
+         product_variation_size_id = trimws(product_variation_size_id),
+         product_variation_size_id = as.factor(product_variation_size_id))
+
+```
+
+```{r}
+data_updated <- data_updated %>% 
+  mutate(product_variation_size_id = as.character(product_variation_size_id),
+         product_variation_size_id = case_when(product_variation_size_id == "2XL" ~ "XXL", 
+                                               product_variation_size_id == "3XL" ~ "XXXL", 
+                                               product_variation_size_id == "4XL" ~ "XXXXL", 
+                                               product_variation_size_id == "5XL" ~ "XXXXXL", 
+                                               product_variation_size_id == "SIZE S" ~ "S", 
+                                               product_variation_size_id == "SIZE XXS" ~ "XXS", 
+                                               product_variation_size_id == "SIZE 4XL" ~ "XXXL", 
+                                               product_variation_size_id == "SIZE 5XL" ~ "XXXXXL", 
+                                               product_variation_size_id == "SIZE M" ~ "M", 
+                                               product_variation_size_id == "SIZE S" ~ "S", 
+                                               product_variation_size_id == "SIZE XS" ~ "XS", 
+                                               product_variation_size_id == "SIZE XXS" ~ "XXS", 
+                                               product_variation_size_id == "SIZE4XL" ~ "XXXXL", 
+                                               product_variation_size_id == "SIZEL" ~ "L",
+                                               product_variation_size_id == "SIZEL" ~ "L",
+                                               TRUE ~ product_variation_size_id),
+         product_variation_size_id = as.factor(product_variation_size_id))
+
+```
+
+```{r}
+unique(data_updated$product_variation_size_id)
+```
+
+```{r}
+ggplot(data_updated, aes(x = product_variation_size_id)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Product Size Distribution", x = "Product Size", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+#cleaning the product_variation_size_id
+data_updated <- data_updated %>% 
+  mutate(product_variation_size_id = as.character(product_variation_size_id),
+         product_sizes = case_when(product_variation_size_id == "S" ~ "S",
+                                   product_variation_size_id == "XS" ~ "XS",
+                                   product_variation_size_id == "M" ~ "M",
+                                   product_variation_size_id == "XXS" ~ "XXS",
+                                   product_variation_size_id == "L" ~ "L",
+                                   product_variation_size_id == "XXL" ~ "XXL",
+                                   product_variation_size_id == "X" ~ "X",
+                                           TRUE ~ "Other_sizes"),
+         product_variation_size_id = as.factor(product_sizes)) 
+```
+
+```{r}
+ggplot(data_updated, aes(x = product_variation_size_id)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Product Size Distribution", x = "Product Size", y = "Frequency") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+data_updated <- data_updated %>%
+  select(-product_colors, -product_sizes)
+```
+
+```{r}
+#checking for missing values in product_variation_inventory 
+missing_or_empty <- data_updated[is.na(data_updated$product_variation_inventory ) | data_updated$product_variation_inventory  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+unique(data_updated$product_variation_inventory)
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = product_variation_inventory)) +
+  geom_histogram(fill = "lightblue", color = "black", bins = 50) +
+  labs(title = "product_variation_inventory", x = "product_variation_inventory", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in shipping_option_name 
+missing_or_empty <- data_updated[is.na(data_updated$shipping_option_name ) | data_updated$shipping_option_name  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = shipping_option_name)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Frequency of Shipping Options", x = "Shipping Option", y = "Frequency")
+```
+
+```{r}
+unique(data_updated$shipping_option_name)
+```
+
+```{r}
+data_updated <- data_updated %>% 
+  mutate(shipping_option_name = as.character(shipping_option_name),
+         shipping_name = case_when(shipping_option_name != "Livraison standard" ~ "Other_shipping",
+                                           TRUE ~ shipping_option_name),
+         shipping_option_name = as.factor(shipping_name))
+```
+
+```{r}
+data_updated %>% 
+  select(shipping_option_name) %>% 
+  group_by(shipping_option_name) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>% 
+  ungroup() %>% 
+  mutate(total = sum(count),
+         proportion = count/total) 
+```
+
+```{r}
+data_updated <- data_updated %>%
+  select(-shipping_name)
+
+```
+
+```{r}
+#checking for missing values in shipping_option_price 
+missing_or_empty <- data_updated[is.na(data_updated$shipping_option_price ) | data_updated$shipping_option_price  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = shipping_option_price)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Frequency of Shipping Options price", x = "Shipping Option price", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in shipping_is_express 
+missing_or_empty <- data_updated[is.na(data_updated$shipping_is_express ) | data_updated$shipping_is_express  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+# Using ggplot2
+
+# Plot the data
+ggplot(data_updated, aes(x = factor(shipping_is_express))) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Frequency of Shipping is Express", x = "Shipping is Express", y = "Frequency") +
+  scale_x_discrete(labels = c("0" = "No", "1" = "Yes")) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+```{r}
+#Can drop Shipping is Express because of the above distribution
+data_updated <- data_updated %>%
+  select(-shipping_is_express)
+```
+
+```{r}
+#checking for missing values in countries_shipped_to
+missing_or_empty <- data_updated[is.na(data_updated$countries_shipped_to ) | data_updated$countries_shipped_to  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = countries_shipped_to)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Frequency of countries_shipped_to", x = "countries_shipped_to", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in inventory_total
+missing_or_empty <- data_updated[is.na(data_updated$inventory_total ) | data_updated$inventory_total  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+# Using ggplot2
+ggplot(data_updated, aes(x = inventory_total)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Frequency of inventory_total", x = "inventory_total", y = "Frequency")
+```
+
+```{r}
+#inventory_total not much of value. Can be dropped
+data_updated <- data_updated %>%
+  select(-inventory_total)
+```
+
+```{r}
+#checking for missing values in has_urgency_banner
+missing_or_empty <- data_updated[is.na(data_updated$has_urgency_banner ) | data_updated$has_urgency_banner  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+data_updated <- data_updated %>%
+  mutate(has_urgency_banner = replace(has_urgency_banner, has_urgency_banner == "", NA)) %>%
+  mutate(has_urgency_banner = replace(has_urgency_banner, is.na(has_urgency_banner), "0"))
+```
+
+```{r}
+ggplot(data_updated, aes(x = has_urgency_banner)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Frequency of has_urgency_banner", x = "has_urgency_banner", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in origin_country
+missing_or_empty <- data_updated[is.na(data_updated$origin_country ) | data_updated$origin_country  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+data_updated <- data_updated %>%
+  mutate(origin_country = replace(origin_country, origin_country == "", NA)) %>%
+  mutate(origin_country = replace(origin_country, is.na(origin_country), "Unavailable"))
+```
+
+```{r}
+unique(data_updated$origin_country)
+```
+
+```{r}
+ggplot(data_updated, aes(x = origin_country)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Frequency of origin_country", x = "origin_country", y = "Frequency")
+#All most all items have origin country as CN - can be dropped
+```
+
+```{r}
+data_updated <- data_updated %>%
+  select(-origin_country)
+```
+
+```{r}
+#checking for missing values in merchant_title
+missing_or_empty <- data_updated[is.na(data_updated$merchant_title ) | data_updated$merchant_title  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+#merchant_title - #too many title to analyze. untill unless needed to text mine can remove
+```
+
+```{r}
+ggplot(data_updated, aes(x = merchant_title)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Frequency of merchant_title", x = "merchant_title", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in merchant_name
+missing_or_empty <- data_updated[is.na(data_updated$merchant_name ) | data_updated$merchant_name  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+data_updated <- data_updated %>%
+  mutate(merchant_name = replace(merchant_name, merchant_name == "", NA)) %>%
+  mutate(merchant_name = replace(merchant_name, is.na(merchant_name), "Unavailable"))
+```
+
+```{r}
+ggplot(data_updated, aes(x = merchant_name)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Frequency of merchant_name", x = "merchant_name", y = "Frequency")
+#Not of much importance in the current analysis - can be dropped
+```
+
+```{r}
+#checking for missing values in merchant_info_subtitle
+missing_or_empty <- data_updated[is.na(data_updated$merchant_info_subtitle ) | data_updated$merchant_info_subtitle  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+data_updated <- data_updated %>%
+  mutate(merchant_info_subtitle = replace(merchant_info_subtitle, merchant_info_subtitle == "", NA)) %>%
+  mutate(merchant_info_subtitle = replace(merchant_info_subtitle, is.na(merchant_info_subtitle), "Unavailable"))
+#Not of much importance can be removed
+```
+
+```{r}
+#checking for missing values in merchant_rating_count
+missing_or_empty <- data_updated[is.na(data_updated$merchant_rating_count ) | data_updated$merchant_rating_count  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+ggplot(data_updated, aes(x = merchant_rating_count)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Frequency of merchant_rating_count", x = "merchant_rating_count", y = "Frequency")
+```
+
+```{r}
+# Replace values in merchant_rating_count greater than 30000 with 30000
+data_updated <- data_updated %>%
+  mutate(merchant_rating_count = ifelse(merchant_rating_count > 300000, 300000, merchant_rating_count))
+```
+
+```{r}
+ggplot(data_updated, aes(x = merchant_rating_count)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Frequency of merchant_rating_count", x = "merchant_rating_count", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in merchant_rating
+missing_or_empty <- data_updated[is.na(data_updated$merchant_rating ) | data_updated$merchant_rating  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+ggplot(data_updated, aes(x = merchant_rating)) +
+  geom_bar(fill = "lightblue", color = "black") +
+  labs(title = "Frequency of merchant_rating", x = "merchant_rating", y = "Frequency")
+```
+
+```{r}
+#checking for missing values in merchant_id
+missing_or_empty <- data_updated[is.na(data_updated$merchant_id ) | data_updated$merchant_id  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+#merchant_id can be dropped
+data_updated <- data_updated %>%
+  select(-merchant_id)
+```
+
+```{r}
+#checking for missing values in merchant_has_profile_picture
+missing_or_empty <- data_updated[is.na(data_updated$merchant_has_profile_picture ) | data_updated$merchant_has_profile_picture  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+#checking for missing values in product_id
+missing_or_empty <- data_updated[is.na(data_updated$product_id ) | data_updated$product_id  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+#checking for missing values in urgency_text
+missing_or_empty <- data_updated[is.na(data_updated$urgency_text ) | data_updated$urgency_text  == "", ]
+
+print(nrow(missing_or_empty))
+```
+
+```{r}
+unique(data_updated$urgency_text)
+```
+
+```{r}
+ #dropping irrelevant columns -  #urgency_text, #product_id, #merchant_info_subtitle, #merchant_title
+
+data_updated <- data_updated %>%
+              select( -urgency_text, -product_id, -merchant_info_subtitle, -merchant_title, -merchant_name)
+```
+
+```{r}
+str(data_updated)
+```
+
+```{r}
+#Converting categorical into factor
+data_updated <- data_updated %>% 
+  mutate(badge_fast_shipping = as.factor(badge_fast_shipping),
+         badge_local_product = as.factor(badge_local_product),
+         badge_product_quality = as.factor(badge_product_quality),
+         merchant_has_profile_picture = as.factor(merchant_has_profile_picture),
+         has_urgency_banner = as.factor(has_urgency_banner))
+
+```
+
+```{r}
+str(data_updated)
+```
+
+```{r}
+library(dplyr); library(tidyr)
+data_updated |>
+  select_if(is.numeric)|>
+  pivot_longer(cols = 1:17,names_to = 'numeric_predictor', values_to = 'values'  )|>
+  ggplot(aes(x = values))+
+  geom_histogram()+
+  facet_wrap(numeric_predictor~., scales = 'free')+
+  theme_bw()
+```
+
+```{r}
+library(dplyr); library(tidyr)
+  data_updated |>
+    select_if(is.factor)|>
+    pivot_longer(cols = 1:8,names_to = 'categorical_predictor', values_to = 'values'  )|>
+    group_by(categorical_predictor, values)|>
+    count()|>
+    ungroup()|>
+    ggplot(aes(x = values, y = n))+
+    geom_col()+
+    facet_wrap(categorical_predictor~., scales = 'free')+
+theme_bw()
+```
+
+```{r}
+#Export Clean Data
+write.csv(data_updated, file = 'Clean_Data_v1.csv', row.names = FALSE)
+
+```
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+1 + 1
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
